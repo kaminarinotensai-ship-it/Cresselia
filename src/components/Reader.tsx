@@ -120,7 +120,7 @@ export function Reader({ book }: ReaderProps) {
   // Typography / Aa Settings State
   const [isAaMenuOpen, setIsAaMenuOpen] = useState(false);
   const [fontSize, setFontSize] = useState(18);
-  const [fontFamily, setFontFamily] = useState('Newsreader');
+  const [fontFamily, setFontFamily] = useState('Lora');
   const [canvasTone, setCanvasTone] = useState('Cream');
   const aaContainerRef = useRef<HTMLDivElement>(null);
 
@@ -177,10 +177,10 @@ export function Reader({ book }: ReaderProps) {
   useEffect(() => {
     if (rendition) {
       const fontMap: Record<string, string> = {
-        'Newsreader': "'Newsreader', serif",
-        'Inter': "'Inter', sans-serif",
-        'Literata': "'Literata', serif",
-        'Atkinson': "'Atkinson Hyperlegible', sans-serif"
+        'Lora': "'Lora', serif",
+        'Merriweather': "'Merriweather', serif",
+        'DM Sans': "'DM Sans', sans-serif",
+        'Space Grotesk': "'Space Grotesk', sans-serif"
       };
 
       const toneMap: Record<string, {bg: string, color: string, selection: string}> = {
@@ -194,12 +194,15 @@ export function Reader({ book }: ReaderProps) {
       const themeName = `theme-${Date.now()}`;
 
       rendition.themes.register(themeName, {
+        "*": {
+          "font-family": `${fontMap[fontFamily]} !important`,
+        },
         "body": {
           "font-family": `${fontMap[fontFamily]} !important`,
           "background": `${currentTone.bg} !important`,
           "color": `${currentTone.color} !important`,
         },
-        "h1, h2, h3, h4, p, span, a, div, li, td": {
+        "h1, h2, h3, h4, p, span, a, div, li, td, em, strong, i, b, blockquote": {
           "font-family": `${fontMap[fontFamily]} !important`,
           "color": `${currentTone.color} !important`,
         },
@@ -258,7 +261,11 @@ export function Reader({ book }: ReaderProps) {
         newRendition.hooks.content.register((contents: any) => {
           const style = contents.document.createElement('style');
           style.innerHTML = `
-            @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@400;600&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Lora:ital,wght@0,400..700;1,400..700&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Space+Grotesk:wght@300..700&display=swap');
+
+            * {
+              font-family: inherit !important;
+            }
 
             body {
               text-align: justify;
@@ -694,7 +701,7 @@ export function Reader({ book }: ReaderProps) {
                   <button 
                     onClick={() => {
                       setFontSize(18);
-                      setFontFamily('Newsreader');
+                      setFontFamily('Lora');
                       setCanvasTone('Cream');
                     }}
                     className="text-[10px] font-bold tracking-widest uppercase text-folio-tertiary hover:text-folio-primary transition-colors"
@@ -708,10 +715,10 @@ export function Reader({ book }: ReaderProps) {
                   <span className="text-[11px] font-bold text-folio-tertiary">Typeface</span>
                   <div className="grid grid-cols-2 bg-[#f3f3ee] p-1 rounded-lg gap-1">
                     {[
-                      { id: 'Newsreader', label: 'Newsreader', cls: 'font-serif' },
-                      { id: 'Inter', label: 'Inter Sans', cls: 'font-sans' },
-                      { id: 'Literata', label: 'Literata', cls: 'font-serif italic' },
-                      { id: 'Atkinson', label: 'Atkinson', cls: 'font-sans' }
+                      { id: 'Lora', label: 'Lora', cls: 'font-serif' },
+                      { id: 'Merriweather', label: 'Merriweather', cls: 'font-serif' },
+                      { id: 'DM Sans', label: 'DM Sans', cls: 'font-sans' },
+                      { id: 'Space Grotesk', label: 'Grotesk', cls: 'font-sans' }
                     ].map(font => (
                       <button 
                         key={font.id}

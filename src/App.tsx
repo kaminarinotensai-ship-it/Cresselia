@@ -7,12 +7,14 @@ import { Metrics } from './components/Metrics';
 import { Library } from './components/Library';
 import { Reader } from './components/Reader';
 import { Book } from './types';
+import { AlertCircle, X, Trash2 } from 'lucide-react';
 
 export default function App() {
   const [books, setBooks] = useState<Book[]>([]);
   const [currentBook, setCurrentBook] = useState<Book | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState('library');
+  const [bookToDelete, setBookToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     const loadBooks = async () => {
@@ -98,7 +100,12 @@ export default function App() {
   };
 
   const handleRemoveBook = (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this book? This action cannot be undone.")) return;
+    setBookToDelete(id);
+  };
+
+  const confirmRemoveBook = () => {
+    if (!bookToDelete) return;
+    const id = bookToDelete;
     
     setBooks(prev => {
       const newBooks = prev.filter(book => book.id !== id);
@@ -106,9 +113,10 @@ export default function App() {
       return newBooks;
     });
     setCurrentBook(prev => {
-      if (prev && prev.id === id) return undefined;
+      if (prev && prev.id === id) return null;
       return prev;
     });
+    setBookToDelete(null);
   };
 
   return (
@@ -148,6 +156,34 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Custom Delete Confirmation Modal */}
+      {bookToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-[#f9f9f6] w-full max-w-sm rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-folio-hairline animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <p className="text-folio-secondary text-[15px] font-serif mb-6 leading-relaxed text-center mt-2">
+                Are you sure you want to remove this book from your library? This action cannot be undone and will erase your reading progress.
+              </p>
+              
+              <div className="flex gap-3 justify-center">
+                <button 
+                  onClick={() => setBookToDelete(null)}
+                  className="px-6 py-2 rounded-lg text-sm font-medium text-folio-tertiary hover:text-folio-primary hover:bg-[#eeede8] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmRemoveBook}
+                  className="px-6 py-2 rounded-lg text-sm font-medium bg-[#9e4747] text-white hover:bg-[#853939] transition-colors shadow-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,8 +8,8 @@
   --color-folio-tertiary: #71717a;
   --color-folio-hairline: #e4e4e7;
   --color-folio-accent: rgba(194, 109, 67, 0.18);
-  --font-sans: 'Inter', sans-serif;
-  --font-serif: 'Newsreader', serif;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-serif: 'Lora', serif;
 }
 
 body {
