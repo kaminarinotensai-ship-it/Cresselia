@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ePub, { Book as EpubBook, Rendition } from 'epubjs';
-import { ChevronLeft, ChevronRight, ChevronDown, PlusSquare, FileText, Copy, ExternalLink, Trash2, Edit2, Search, SlidersHorizontal, Maximize, Bookmark, ArrowLeft, ArrowRight, Minimize, X, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, PlusSquare, FileText, Copy, ExternalLink, Trash2, Edit2, Search, SlidersHorizontal, Maximize, Bookmark, ArrowLeft, ArrowRight, Minimize, X, ChevronRight as ChevronRightIcon, Book as BookIcon, BookOpen, ArrowUpDown, Crosshair, AlignJustify, AlignLeft, Minus, Plus } from 'lucide-react';
 import { Book } from '../types';
 
 const TocNode = ({ item, level = 0, currentChapter, goToLocation }: { item: any, level?: number, currentChapter: string, goToLocation: (href: string) => void }) => {
@@ -133,6 +133,11 @@ export function Reader({ book }: ReaderProps) {
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
+  // Layout Settings State
+  const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<'single' | 'spread' | 'continuous' | 'focus'>('single');
+  const layoutContainerRef = useRef<HTMLDivElement>(null);
+
   // Close search on outside click or iframe click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -142,14 +147,18 @@ export function Reader({ book }: ReaderProps) {
       if (aaContainerRef.current && !aaContainerRef.current.contains(event.target as Node)) {
         setIsAaMenuOpen(false);
       }
+      if (layoutContainerRef.current && !layoutContainerRef.current.contains(event.target as Node)) {
+        setIsLayoutMenuOpen(false);
+      }
     };
     
     const handleRenditionClick = () => {
       setIsSearchOpen(false);
       setIsAaMenuOpen(false);
+      setIsLayoutMenuOpen(false);
     };
 
-    if (isSearchOpen || isAaMenuOpen) {
+    if (isSearchOpen || isAaMenuOpen || isLayoutMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       if (rendition) {
         rendition.on('mousedown', handleRenditionClick);
@@ -164,7 +173,7 @@ export function Reader({ book }: ReaderProps) {
         rendition.off('touchstart', handleRenditionClick);
       }
     };
-  }, [isSearchOpen, rendition]);
+  }, [isSearchOpen, isAaMenuOpen, isLayoutMenuOpen, rendition]);
 
   // Focus Search Input when opened
   useEffect(() => {
@@ -184,10 +193,12 @@ export function Reader({ book }: ReaderProps) {
       };
 
       const toneMap: Record<string, {bg: string, color: string, selection: string}> = {
-        'Cream': { bg: '#f9f9f6', color: '#1a1a1a', selection: 'rgba(168, 125, 96, 0.3)' },
-        'Pristine': { bg: '#ffffff', color: '#000000', selection: 'rgba(168, 125, 96, 0.3)' },
-        'Sepia': { bg: '#f4ecd8', color: '#5b4636', selection: 'rgba(168, 125, 96, 0.2)' },
-        'Night': { bg: '#18181b', color: '#a1a1aa', selection: 'rgba(255, 255, 255, 0.15)' },
+        'Cream': { bg: '#f9f9f6', color: '#2d241e', selection: 'rgba(168, 125, 96, 0.3)' },
+        'Parchment': { bg: '#f1e6d1', color: '#4a3b32', selection: 'rgba(168, 125, 96, 0.3)' },
+        'Sage': { bg: '#eef2ee', color: '#2a3b2c', selection: 'rgba(92, 117, 96, 0.3)' },
+        'Dusty Rose': { bg: '#f6eceb', color: '#4a2f2d', selection: 'rgba(189, 137, 133, 0.3)' },
+        'Slate': { bg: '#1c2127', color: '#abb2bf', selection: 'rgba(100, 120, 140, 0.4)' },
+        'Night': { bg: '#121212', color: '#999999', selection: 'rgba(255, 255, 255, 0.15)' },
       };
 
       const currentTone = toneMap[canvasTone] || toneMap['Cream'];
@@ -214,6 +225,86 @@ export function Reader({ book }: ReaderProps) {
       rendition.themes.fontSize(`${fontSize}px`);
     }
   }, [rendition, fontFamily, fontSize, canvasTone]);
+
+  // Layout Dynamic Application
+  useEffect(() => {
+    if (rendition) {
+      // Toggle Spread
+      if (layoutMode === 'spread') {
+        rendition.spread('auto');
+      } else {
+        rendition.spread('none');
+      }
+
+      // Update flow (note: some versions of epubjs handle this poorly without re-rendering, 
+      // but 'scrolled-doc' gives continuous scroll if supported)
+      // For focus mode we also might inject some CSS.
+      // We will handle focus mode through CSS injection below.
+    }
+  }, [rendition, layoutMode]);
+
+  // Handle Focus Stream Mode CSS
+  useEffect(() => {
+    if (rendition) {
+      // Injects a CSS rule that dims paragraphs and highlights on hover
+      const focusStyleId = 'focus-mode-style';
+      
+      rendition.hooks.content.register((contents: any) => {
+        let styleEl = contents.document.getElementById(focusStyleId);
+        
+        if (layoutMode === 'focus') {
+          if (!styleEl) {
+            styleEl = contents.document.createElement('style');
+            styleEl.id = focusStyleId;
+            styleEl.innerHTML = `
+              p {
+                opacity: 0.3 !important;
+                transition: opacity 0.3s ease !important;
+              }
+              p:hover, p:active {
+                opacity: 1 !important;
+              }
+            `;
+            contents.document.head.appendChild(styleEl);
+          }
+        } else {
+          if (styleEl) {
+            styleEl.remove();
+          }
+        }
+      });
+      
+      // If rendition is already displayed and we toggle it, we need to manually inject/remove for the current iframe
+      try {
+        const iframe = (rendition.getContents() as any)?.[0]?.document;
+        if (iframe) {
+          let styleEl = iframe.getElementById(focusStyleId);
+          if (layoutMode === 'focus') {
+            if (!styleEl) {
+              styleEl = iframe.createElement('style');
+              styleEl.id = focusStyleId;
+              styleEl.innerHTML = `
+                p {
+                  opacity: 0.3 !important;
+                  transition: opacity 0.3s ease !important;
+                }
+                p:hover, p:active {
+                  opacity: 1 !important;
+                }
+              `;
+              iframe.head.appendChild(styleEl);
+            }
+          } else {
+            if (styleEl) {
+              styleEl.remove();
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore if iframe not accessible yet
+      }
+    }
+  }, [rendition, layoutMode]);
 
   // Fullscreen Listener
   useEffect(() => {
@@ -682,6 +773,77 @@ export function Reader({ book }: ReaderProps) {
             )}
           </div>
 
+          <div className="relative" ref={layoutContainerRef}>
+            <button 
+              onClick={() => setIsLayoutMenuOpen(!isLayoutMenuOpen)}
+              className={`p-2 rounded-full transition-colors ml-1 ${isLayoutMenuOpen ? 'text-folio-primary bg-[#eeede8]' : 'text-folio-tertiary hover:text-folio-primary hover:bg-[#eeede8]'}`}
+              aria-label="Reading and Layout Settings"
+            >
+              <BookIcon className="w-[18px] h-[18px]" />
+            </button>
+            
+            {/* Layout & Reading Settings Dropdown */}
+            {isLayoutMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-[380px] bg-white rounded-xl shadow-2xl border border-folio-hairline p-5 z-50 flex flex-col">
+                <div className="flex justify-between items-center mb-5">
+                  <span className="text-[10px] font-bold tracking-widest uppercase text-folio-tertiary">Reading Settings</span>
+                </div>
+                
+                {/* Layout Mode */}
+                <div className="flex flex-col gap-2 mb-6">
+                  <span className="text-[11px] font-bold text-folio-tertiary">Layout Formats</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'single', label: 'Single Page', sub: 'Standard column', icon: FileText },
+                      { id: 'spread', label: 'Two-Page Spread', sub: 'Dual leaf folio', icon: BookOpen },
+                      { id: 'continuous', label: 'Continuous', sub: 'Fluid vertical scroll', icon: ArrowUpDown },
+                      { id: 'focus', label: 'Focus Stream', sub: 'Paragraph dimming', icon: Crosshair }
+                    ].map(layout => {
+                      const Icon = layout.icon;
+                      return (
+                        <button 
+                          key={layout.id}
+                          onClick={() => setLayoutMode(layout.id as any)}
+                          className={`flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-colors relative ${layoutMode === layout.id ? 'border-[#c2a38c] bg-[#f9f7f4]' : 'border-folio-hairline hover:bg-black/5'}`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Icon className={`w-4 h-4 ${layoutMode === layout.id ? 'text-[#8b5e3c]' : 'text-folio-tertiary'}`} />
+                            <span className={`font-medium text-[13px] ${layoutMode === layout.id ? 'text-[#8b5e3c]' : 'text-folio-primary'}`}>{layout.label}</span>
+                          </div>
+                          <span className="text-[10px] text-folio-tertiary leading-tight">{layout.sub}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Canvas Tone (Moved from Aa Menu) */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-[11px] font-bold text-folio-tertiary">Canvas Tone</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'Cream', bg: '#f9f9f6', border: '#e5e5e0' },
+                      { id: 'Parchment', bg: '#f1e6d1', border: '#d9cbb0' },
+                      { id: 'Sage', bg: '#eef2ee', border: '#d0d8d0' },
+                      { id: 'Dusty Rose', bg: '#f6eceb', border: '#e3d2d0' },
+                      { id: 'Slate', bg: '#1c2127', border: '#2d3540' },
+                      { id: 'Night', bg: '#121212', border: '#2a2a2a' }
+                    ].map(tone => (
+                      <button 
+                        key={tone.id}
+                        onClick={() => setCanvasTone(tone.id)}
+                        className={`flex flex-col items-center gap-2 p-2.5 rounded-lg bg-[#f3f3ee] transition-all ${canvasTone === tone.id ? 'ring-2 ring-[#a87d60] ring-offset-1' : 'hover:bg-[#e5e5df]'}`}
+                      >
+                        <div className="w-7 h-7 rounded-full border shadow-sm" style={{ backgroundColor: tone.bg, borderColor: tone.border }}></div>
+                        <span className="text-[9px] font-medium text-folio-tertiary whitespace-nowrap">{tone.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="relative" ref={aaContainerRef}>
             <button 
               onClick={() => setIsAaMenuOpen(!isAaMenuOpen)}
@@ -732,7 +894,7 @@ export function Reader({ book }: ReaderProps) {
                 </div>
         
                 {/* Font Size */}
-                <div className="flex flex-col gap-1 mb-5">
+                <div className="flex flex-col gap-1">
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] font-bold text-folio-tertiary">Font Size</span>
                     <span className="text-[11px] font-bold text-folio-primary">{fontSize}px</span>
@@ -749,28 +911,6 @@ export function Reader({ book }: ReaderProps) {
                       className="flex-1 accent-black h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer" 
                     />
                     <span className="text-xl font-serif text-folio-tertiary">A</span>
-                  </div>
-                </div>
-                
-                {/* Canvas Tone */}
-                <div className="flex flex-col gap-2">
-                  <span className="text-[11px] font-bold text-folio-tertiary">Canvas Tone</span>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { id: 'Cream', bg: '#f9f9f6', border: '#e5e5e0' },
-                      { id: 'Pristine', bg: '#ffffff', border: '#e5e5e0' },
-                      { id: 'Sepia', bg: '#f4ecd8', border: '#e8dbbf' },
-                      { id: 'Night', bg: '#18181b', border: '#3f3f46' }
-                    ].map(tone => (
-                      <button 
-                        key={tone.id}
-                        onClick={() => setCanvasTone(tone.id)}
-                        className={`flex flex-col items-center gap-2 p-2.5 rounded-lg bg-[#f3f3ee] transition-all ${canvasTone === tone.id ? 'ring-2 ring-[#a87d60] ring-offset-1' : 'hover:bg-[#e5e5df]'}`}
-                      >
-                        <div className="w-7 h-7 rounded-full border shadow-sm" style={{ backgroundColor: tone.bg, borderColor: tone.border }}></div>
-                        <span className="text-[9px] font-medium text-folio-tertiary">{tone.id}</span>
-                      </button>
-                    ))}
                   </div>
                 </div>
               </div>
