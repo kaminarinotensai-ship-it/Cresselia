@@ -1,0 +1,6 @@
+{
+  "name": "Cresellia",
+  "description": "An elegant, quiet-luxury Epub Reader with a Swiss modernist design.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
