@@ -1,5 +1,5 @@
 import { BookOpen, List, CloudUpload, X, ChevronRight, ChevronDown } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import ePub from 'epubjs';
 
 export function Hero({ currentBook, onUpload, onRead }: { currentBook?: any, onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void, onRead: () => void }) {

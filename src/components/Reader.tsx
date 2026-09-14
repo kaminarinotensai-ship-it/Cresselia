@@ -1,80 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ePub, { Book as EpubBook, Rendition } from 'epubjs';
-import { ChevronLeft, ChevronRight, ChevronDown, PlusSquare, FileText, Copy, ExternalLink, Trash2, Edit2, Search, SlidersHorizontal, Maximize, Bookmark, ArrowLeft, ArrowRight, Minimize, X, ChevronRight as ChevronRightIcon, Book as BookIcon, BookOpen, ArrowUpDown, Crosshair, AlignJustify, AlignLeft, Minus, Plus } from 'lucide-react';
+import { get, set } from 'idb-keyval';
+import { ChevronLeft, ChevronRight, ChevronDown, PlusSquare, FileText, Copy, ExternalLink, Trash2, Edit2, Search, SlidersHorizontal, Maximize, Bookmark, ArrowLeft, ArrowRight, Minimize, X, ChevronRight as ChevronRightIcon, Book as BookIcon, BookOpen, ArrowUpDown, Crosshair, AlignJustify, AlignLeft, Minus, Plus, Grid3x3 } from 'lucide-react';
 import { Book } from '../types';
-
-const TocNode = ({ item, level = 0, currentChapter, goToLocation }: { item: any, level?: number, currentChapter: string, goToLocation: (href: string) => void }) => {
-  const hasChildren = item.subitems && item.subitems.length > 0;
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  // Auto-expand this folder if the current active chapter is inside it
-  useEffect(() => {
-    const containsActive = (node: any): boolean => {
-      if (node.label.trim() === currentChapter) return true;
-      if (node.subitems) return node.subitems.some(containsActive);
-      return false;
-    };
-    if (containsActive(item)) {
-      setIsExpanded(true);
-    }
-  }, [currentChapter, item]);
-
-  const isActive = currentChapter === item.label.trim();
-
-  return (
-    <li className="flex flex-col w-full mb-1">
-      <div 
-        className={`flex items-start w-full py-2.5 rounded-lg transition-colors group relative cursor-pointer ${
-          isActive ? 'bg-[#e5ddd3]' : 'hover:bg-black/5'
-        }`}
-        style={{ paddingLeft: `${level * 16 + 12}px`, paddingRight: '12px' }}
-        onClick={() => goToLocation(item.href)}
-      >
-        {/* Active state left border accent */}
-        {isActive && (
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#a87d60] rounded-l-lg"></div>
-        )}
-
-        {hasChildren ? (
-          <button 
-            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} 
-            className={`mt-0.5 p-0.5 mr-2 rounded transition-colors shrink-0 ${isActive ? 'text-[#a87d60]' : 'text-folio-tertiary hover:text-folio-primary hover:bg-black/10'}`}
-          >
-            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          </button>
-        ) : (
-          <div className="w-4 mr-2 shrink-0 flex items-center justify-center mt-1.5">
-             <div className={`w-1 h-1 rounded-full ${isActive ? 'bg-[#a87d60]' : 'bg-folio-hairline'}`}></div>
-          </div>
-        )}
-        
-        <div 
-          className={`flex-1 text-left text-[13px] leading-snug py-0.5 truncate ${isActive ? 'text-[#a87d60] font-bold' : 'text-folio-secondary font-medium'}`} 
-          title={item.label}
-        >
-          {item.label}
-        </div>
-      </div>
-      
-      {hasChildren && isExpanded && (
-        <ul className="flex flex-col mt-1 w-full">
-          {item.subitems.map((sub: any, i: number) => (
-            <TocNode 
-              key={i} 
-              item={sub} 
-              level={level + 1} 
-              currentChapter={currentChapter} 
-              goToLocation={goToLocation} 
-            />
-          ))}
-        </ul>
-      )}
-    </li>
-  );
-};
+import { CANVAS_TONES, HIGHLIGHT_COLORS } from './reader/constants';
+import { TocNode } from './reader/TocNode';
 
 interface ReaderProps {
   book: Book;
+  onProgressUpdate?: (id: string, progress: string, status?: 'reading' | 'finished') => void;
 }
 
 interface Note {
@@ -86,9 +20,8 @@ interface Note {
   chapterIndex: number;
 }
 
-const HIGHLIGHT_COLORS = ['#f3b79b', '#f6dfcc', '#d0dbe5'];
 
-export function Reader({ book }: ReaderProps) {
+export function Reader({ book, onProgressUpdate }: ReaderProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const epubBookRef = useRef<EpubBook | null>(null);
   const [rendition, setRendition] = useState<Rendition | null>(null);
@@ -136,6 +69,7 @@ export function Reader({ book }: ReaderProps) {
   // Layout Settings State
   const [isLayoutMenuOpen, setIsLayoutMenuOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'single' | 'spread' | 'continuous' | 'focus'>('single');
+  const [isPureFocus, setIsPureFocus] = useState(false);
   const layoutContainerRef = useRef<HTMLDivElement>(null);
 
   // Close search on outside click or iframe click
@@ -192,16 +126,7 @@ export function Reader({ book }: ReaderProps) {
         'Space Grotesk': "'Space Grotesk', sans-serif"
       };
 
-      const toneMap: Record<string, {bg: string, color: string, selection: string}> = {
-        'Cream': { bg: '#f9f9f6', color: '#2d241e', selection: 'rgba(168, 125, 96, 0.3)' },
-        'Parchment': { bg: '#f1e6d1', color: '#4a3b32', selection: 'rgba(168, 125, 96, 0.3)' },
-        'Sage': { bg: '#eef2ee', color: '#2a3b2c', selection: 'rgba(92, 117, 96, 0.3)' },
-        'Dusty Rose': { bg: '#f6eceb', color: '#4a2f2d', selection: 'rgba(189, 137, 133, 0.3)' },
-        'Slate': { bg: '#1c2127', color: '#abb2bf', selection: 'rgba(100, 120, 140, 0.4)' },
-        'Night': { bg: '#121212', color: '#999999', selection: 'rgba(255, 255, 255, 0.15)' },
-      };
-
-      const currentTone = toneMap[canvasTone] || toneMap['Cream'];
+      const currentTone = CANVAS_TONES.find(t => t.id === canvasTone) || CANVAS_TONES[0];
       const themeName = `theme-${Date.now()}`;
 
       rendition.themes.register(themeName, {
@@ -249,7 +174,7 @@ export function Reader({ book }: ReaderProps) {
       // Injects a CSS rule that dims paragraphs and highlights on hover
       const focusStyleId = 'focus-mode-style';
       
-      rendition.hooks.content.register((contents: any) => {
+      rendition.hooks?.content?.register((contents: any) => {
         let styleEl = contents.document.getElementById(focusStyleId);
         
         if (layoutMode === 'focus') {
@@ -335,6 +260,11 @@ export function Reader({ book }: ReaderProps) {
     const loadBook = async () => {
       setIsLoading(true);
       try {
+        const savedNotes = await get<Note[]>(`notes-${book.id}`);
+        if (savedNotes && isMounted) {
+          setNotes(savedNotes);
+        }
+
         const buffer = await book.file.arrayBuffer();
         epubBook = ePub(buffer);
         epubBookRef.current = epubBook;
@@ -349,7 +279,7 @@ export function Reader({ book }: ReaderProps) {
         
         await epubBook.ready;
         
-        newRendition.hooks.content.register((contents: any) => {
+        newRendition.hooks?.content?.register((contents: any) => {
           const style = contents.document.createElement('style');
           style.innerHTML = `
             @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Lora:ital,wght@0,400..700;1,400..700&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Space+Grotesk:wght@300..700&display=swap');
@@ -428,11 +358,11 @@ export function Reader({ book }: ReaderProps) {
           }
         }).catch(console.error);
         
-        await newRendition.display();
-        
         newRendition.on('relocated', (location: any) => {
           setSelectionPopup(null); // Hide popup on page turn
           if (!location.start || !epubBook) return;
+          
+          set(`progress-${book.id}`, location.start.cfi).catch(console.error);
           
           setCurrentIndex(location.start.index);
           
@@ -456,19 +386,34 @@ export function Reader({ book }: ReaderProps) {
           });
           
           // Update chapter name
-          const navItem = epubBook.navigation.get(location.start.href);
+          const navItem = epubBook!.navigation.get(location.start.href);
           if (navItem && navItem.label) {
             setCurrentChapter(navItem.label.trim());
           }
           
           // Update page numbers
+          let currentProgressText = '';
+          const isFinished = location.atEnd || false;
+          
           if (location.start.displayed && location.start.displayed.total) {
-            setProgressText(`P. ${location.start.displayed.page} OF ${location.start.displayed.total}`);
+            currentProgressText = `P. ${location.start.displayed.page} OF ${location.start.displayed.total}`;
           } else {
             const percent = Math.round(location.start.percentage * 100) || 0;
-            setProgressText(`${percent}%`);
+            currentProgressText = `${percent}%`;
+          }
+          setProgressText(currentProgressText);
+
+          if (onProgressUpdate) {
+            onProgressUpdate(book.id, currentProgressText, isFinished ? 'finished' : 'reading');
           }
         });
+
+        const savedCfi = await get(`progress-${book.id}`);
+        if (savedCfi) {
+          await newRendition.display(savedCfi as string);
+        } else {
+          await newRendition.display();
+        }
 
         // Setup Selection Events
         newRendition.on('selected', (cfiRange: string, contents: any) => {
@@ -522,7 +467,7 @@ export function Reader({ book }: ReaderProps) {
         epubBook.destroy();
       }
     };
-  }, [book]);
+  }, [book.id]);
 
   const handlePrev = () => rendition?.prev();
   const handleNext = () => rendition?.next();
@@ -549,7 +494,12 @@ export function Reader({ book }: ReaderProps) {
       color: selectedHighlightColor,
       chapterIndex: currentIndex
     };
-    setNotes(prev => [newNote, ...prev]);
+    
+    setNotes(prev => {
+      const updatedNotes = [newNote, ...prev];
+      set(`notes-${book.id}`, updatedNotes).catch(console.error);
+      return updatedNotes;
+    });
     
     // Clear selection UI
     setSelectionPopup(null);
@@ -558,7 +508,11 @@ export function Reader({ book }: ReaderProps) {
   };
 
   const handleDeleteNote = (noteId: string, cfi: string) => {
-    setNotes(prev => prev.filter(n => n.id !== noteId));
+    setNotes(prev => {
+      const updatedNotes = prev.filter(n => n.id !== noteId);
+      set(`notes-${book.id}`, updatedNotes).catch(console.error);
+      return updatedNotes;
+    });
     if (rendition) {
       rendition.annotations.remove(cfi, "highlight");
     }
@@ -625,8 +579,22 @@ export function Reader({ book }: ReaderProps) {
     );
   };
 
+  // Keyboard Navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') rendition?.next();
+      if (e.key === 'ArrowLeft') rendition?.prev();
+      if (e.key === 'Escape' && isPureFocus) setIsPureFocus(false);
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rendition, isPureFocus]);
+
+  const activeToneData = CANVAS_TONES.find(t => t.id === canvasTone) || CANVAS_TONES[0];
+
   return (
-    <div className="flex-1 flex flex-col items-center w-full max-w-[1800px] mx-auto px-4 md:px-12 lg:px-16 py-6 h-full overflow-hidden min-h-0 relative">
+    <div className={`flex-1 flex flex-col items-center w-full max-w-[1800px] mx-auto h-full overflow-hidden min-h-0 relative transition-all duration-500 ${isPureFocus ? 'p-4 md:p-8 lg:p-12' : 'px-4 md:px-8 lg:px-12 py-6'}`}>
       
       {/* Global Click-away for selection popup */}
       {selectionPopup && (
@@ -681,8 +649,8 @@ export function Reader({ book }: ReaderProps) {
       )}
 
       {/* Reader Header */}
-      <div className="w-full relative flex items-center justify-between mb-8 flex-shrink-0">
-        <div className="flex items-baseline space-x-3 z-10">
+      <div className={`w-full relative flex items-center justify-between flex-shrink-0 transition-all duration-500 ${isPureFocus ? 'mb-4' : 'mb-8'}`}>
+        <div className={`flex items-baseline space-x-3 z-10 transition-opacity duration-500 ${isPureFocus ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <h2 className="font-serif text-2xl text-folio-primary truncate max-w-lg">{book.title}</h2>
           <span className="text-sm font-medium text-folio-tertiary whitespace-nowrap">by {book.author}</span>
         </div>
@@ -690,6 +658,15 @@ export function Reader({ book }: ReaderProps) {
         {/* Top Right Navigation Icons */}
         <div className="flex items-center space-x-2 z-10 relative">
           
+          <button 
+            onClick={() => setIsPureFocus(!isPureFocus)}
+            className={`flex items-center gap-2 px-3 md:px-4 py-1.5 rounded-full transition-colors mr-1 md:mr-2 ${isPureFocus ? 'bg-[#a87d60] text-white shadow-md' : 'bg-[#eeede8] text-[#8b5e3c] hover:bg-[#e5ddd3]'}`}
+            aria-label="Toggle Pure Focus"
+          >
+            <Grid3x3 className="w-4 h-4" />
+            <span className="text-sm font-medium hidden sm:inline">Pure Focus</span>
+          </button>
+
           <div className="relative" ref={searchContainerRef}>
             <button 
               onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -821,14 +798,7 @@ export function Reader({ book }: ReaderProps) {
                 <div className="flex flex-col gap-2">
                   <span className="text-[11px] font-bold text-folio-tertiary">Canvas Tone</span>
                   <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: 'Cream', bg: '#f9f9f6', border: '#e5e5e0' },
-                      { id: 'Parchment', bg: '#f1e6d1', border: '#d9cbb0' },
-                      { id: 'Sage', bg: '#eef2ee', border: '#d0d8d0' },
-                      { id: 'Dusty Rose', bg: '#f6eceb', border: '#e3d2d0' },
-                      { id: 'Slate', bg: '#1c2127', border: '#2d3540' },
-                      { id: 'Night', bg: '#121212', border: '#2a2a2a' }
-                    ].map(tone => (
+                    {CANVAS_TONES.map(tone => (
                       <button 
                         key={tone.id}
                         onClick={() => setCanvasTone(tone.id)}
@@ -935,8 +905,9 @@ export function Reader({ book }: ReaderProps) {
       <div className="w-full flex-1 flex flex-row items-stretch gap-8 lg:gap-16 overflow-hidden min-h-0">
         
         {/* Left Sidebar (TOC) */}
-        <div className="hidden lg:flex w-64 xl:w-72 flex-col flex-shrink-0 space-y-6 min-h-0">
-          {/* TOC List Container */}
+        {!isPureFocus && (
+          <div className="hidden lg:flex w-64 xl:w-72 flex-col flex-shrink-0 space-y-6 min-h-0">
+            {/* TOC List Container */}
           <div className="flex-1 bg-[#eeede8] rounded-xl border border-folio-hairline overflow-hidden flex flex-col min-h-0 relative">
             
             <div className="px-4 pt-4 pb-2 shrink-0 bg-[#eeede8] z-10 relative">
@@ -964,13 +935,14 @@ export function Reader({ book }: ReaderProps) {
             <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#eeede8] to-transparent pointer-events-none z-10"></div>
           </div>
         </div>
+        )}
 
         {/* Reader Container */}
         <div 
-          className="w-full max-w-5xl flex-1 rounded-xl shadow-sm border border-folio-hairline relative flex flex-col overflow-hidden min-h-0 transition-colors duration-300"
+          className="w-full flex-1 rounded-xl shadow-sm border relative flex flex-col overflow-hidden min-h-0 transition-colors duration-300"
           style={{ 
-            backgroundColor: canvasTone === 'Cream' ? '#f9f9f6' : canvasTone === 'Pristine' ? '#ffffff' : canvasTone === 'Sepia' ? '#f4ecd8' : '#18181b',
-            borderColor: canvasTone === 'Night' ? '#3f3f46' : ''
+            backgroundColor: activeToneData.bg,
+            borderColor: activeToneData.border
           }}
         >
           {isLoading && (
@@ -982,13 +954,18 @@ export function Reader({ book }: ReaderProps) {
           {/* EPUB Viewer */}
           <div 
             ref={viewerRef} 
-            className="flex-1 relative min-h-0 w-full py-4 md:py-8 px-4 md:px-16 transition-all duration-300"
+            className="flex-1 relative min-h-0 w-full py-4 md:py-8 px-4 md:px-10 lg:px-14 transition-all duration-300"
           />
 
           {/* Bottom Navigation Footer */}
-          <div 
-            className={`shrink-0 flex items-center justify-between px-8 md:px-16 py-6 text-xs font-bold tracking-widest border-t transition-colors duration-300 ${canvasTone === 'Night' ? 'border-[#3f3f46] text-[#a1a1aa]' : 'border-folio-hairline text-folio-tertiary'}`}
-          >
+          {!isPureFocus && (
+            <div 
+              className="shrink-0 flex items-center justify-between px-8 md:px-16 py-6 text-xs font-bold tracking-widest border-t transition-colors duration-300"
+              style={{ 
+                borderColor: activeToneData.border, 
+                color: canvasTone === 'Night' || canvasTone === 'Slate' ? '#a1a1aa' : '#71717a'
+              }}
+            >
             <button 
               onClick={handlePrev}
               className="flex items-center gap-3 hover:text-folio-primary transition-colors uppercase group"
@@ -1011,11 +988,13 @@ export function Reader({ book }: ReaderProps) {
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
             </button>
           </div>
+          )}
         </div>
 
         {/* Right Sidebar (Archival Notes) */}
-        <div className="hidden lg:flex w-64 xl:w-72 flex-col flex-shrink-0 space-y-6 min-h-0">
-          <div className="flex flex-col shrink-0">
+        {!isPureFocus && (
+          <div className="hidden lg:flex w-64 xl:w-72 flex-col flex-shrink-0 space-y-6 min-h-0">
+            <div className="flex flex-col shrink-0">
             <div className="flex justify-between items-end mb-3">
               <span className="text-[10px] font-bold tracking-widest uppercase text-folio-tertiary">Archival Notes</span>
               <span className="text-[10px] font-medium text-[#a87d60]">{notes.filter(n => n.chapterIndex === currentIndex).length} {notes.filter(n => n.chapterIndex === currentIndex).length === 1 ? 'Note' : 'Notes'}</span>
@@ -1060,6 +1039,7 @@ export function Reader({ book }: ReaderProps) {
 
           </div>
         </div>
+        )}
       </div>
     </div>
   );

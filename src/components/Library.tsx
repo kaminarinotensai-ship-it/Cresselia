@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { LayoutGrid, List, ChevronDown, Plus, CheckCircle2, BookOpen, Users, Trash2 } from 'lucide-react';
 import { Book } from '../types';
 
@@ -135,7 +135,7 @@ export function Library({ books, onUpload, onSelectBook, onDeleteBook }: { books
                 return acc;
               }, {} as Record<string, Book[]>)
             ).sort(([a], [b]) => a.localeCompare(b))
-            .map(([author, authorBooks]) => (
+            .map(([author, authorBooks]: [string, Book[]]) => (
               <div key={author}>
                 <h3 className="font-serif text-xl text-folio-primary border-b border-folio-hairline pb-2 mb-6">{author}</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 lg:gap-8">
